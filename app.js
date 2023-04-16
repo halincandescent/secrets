@@ -7,7 +7,7 @@ const mongoose = require("mongoose");
 //const encrypt = require('mongoose-encryption'); 
 //const md5 = require('md5'); 
 //const bcrypt = require('bcrypt'); 
-//const saltRounds = 10; 
+const saltRounds = 10; 
 const session = require('express-session');
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');  
@@ -19,7 +19,7 @@ app.use(express.static('public'));
 app.set('view engine','ejs');
 app.use(bodyParser.urlencoded({extended:true}));
 app.use(session({
-  secret: "Sneaky sneaky.",
+  secret: process.env.SECRET2,
   resave: false,
   saveUninitialized: false
 }));
@@ -32,7 +32,8 @@ mongoose.connect("mongodb://localhost:27017/userDB",{useNewUrlParser: true});
 
 const userSchema = new mongoose.Schema ({
   email: String,
-  password: String
+  password: String,
+  secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -61,16 +62,52 @@ app.get("/register", function(req,res){
 });
 
 app.get("/secrets", function(req,res){
-  if (req.isAuthenticated()){
-  res.render("secrets");
-  } else {
-    res.redirect("/login"); 
-  } 
+  //if (req.isAuthenticated()){
+  //res.render("secrets");
+  //} else {
+  //  res.redirect("/login"); 
+  //}
+
+  User.find({"secret":{$ne:null}})
+    .then(function (foundUsers) {
+      res.render("secrets",{usersWithSecrets:foundUsers});
+      })
+    .catch(function (err) {
+      console.log(err);
+    })  
+ 
 });
 
 app.get("/logout", function(req,res){
   req.logout();
   res.redirect("/"); 
+});
+
+app.get("/submit", function(req,res){
+  if (req.isAuthenticated()){
+    res.render("submit");
+  } else {
+    res.redirect("/login");
+  }
+
+});
+
+app.post("/submit", function (req, res) {
+    //console.log(req.user);
+    User.findById(req.user)
+      .then(foundUser => {
+        if (foundUser) {
+          foundUser.secret = req.body.secret;
+          return foundUser.save();
+        }
+        return null;
+      })
+      .then(() => {
+        res.redirect("/secrets");
+      })
+      .catch(err => {
+        console.log(err);
+      });
 });
 
 app.post("/register", function(req,res){
